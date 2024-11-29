@@ -69,6 +69,7 @@ SAVECOOKIE(cookie)
     S ^AOC("EXPHORO")=expDate
     S ^AOC("EXPDATE")=expStr
     Q
+    
 GETFILE(year,day,path) 
     ;Gets today's file from AOC site, as per aocdl's way of doing it.
     I ##class(%File).Exists(path) W "GETFILE: We have the file "_year_"-"_day_" already",! Q  
