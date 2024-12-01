@@ -15,7 +15,7 @@ DOIT(actual,task,debug)
     I 'actual D LOADTD^AOCBASE("T1","AOC2401",.data)
     S debug=+$G(debug),task=$S(task=2:2,1:1) 
     N line,sort
-    ;For we load in the line, while sorting lowest to highest in each side.
+    ;We load in the lines, while sorting lowest to highest in each side.
     F line=1:1:data D EXTRACTVAL(data(line),.sort)
     I task=1 D  Q
     .;In task 1, we order by rows on both sides, then add together the differences
@@ -24,8 +24,8 @@ DOIT(actual,task,debug)
     .;Data is now staged by sorted row ID, so calculate the distance
     .D CALCDIST(.sort)
     I task=2 D 
-    .;In task 2 we multiple the number on a row in the left with the count of occurances on the right.
-    .;uckily, our first step gave us that number of occurances on the right so, should be half there.
+    .;In task 2 we multiply the number on a row in the left with the count of occurances on the right.
+    .;Luckily, our first step gave us that number of occurances on the right so, should be half there.
     .D SORTLIST("OL",.sort)     ;We need the sorted left list still, just not the sorted right list any more.
     .D CALCSIM(.sort)           ;Goes down sorted left and gets the correlation value from the right.
     Q
