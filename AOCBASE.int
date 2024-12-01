@@ -14,8 +14,8 @@ LOADTD(lbl,rtn,data)
     F x=1:1 Q:done  D
     .S ref=lbl_"+"_x_"^"_rtn
     .N d s d=$ZSTRIP($T(@ref),"<>W")
+    .I d=";;ENDS;;" s done=1 Q
     .S data=x
-    .I d=";;ENDS;;" s done=1,data(x)="" Q
     .S data(x)=$E(d,2,$L(d))
     Q
 
