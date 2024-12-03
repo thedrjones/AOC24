@@ -1,0 +1,67 @@
+AOC2403 ;2024 Day 3
+
+T1  ;;TEST DATA 1;;
+    ;xmul(2,4)&mul[3,7]!^don't()_mul(5,5)+mul(32,64](mul(11,8)undo()?mul(8,5))
+    ;;ENDS;;
+
+DOIT(dataset,task,debug)
+    N data
+    I dataset=0 D LOADTD^AOCBASE("T1","AOC2403",.data)  ;Test data 1
+    I dataset=1 D LOAD^AOCBASE(2024,3,.data)            ;Actual data
+    S debug=+$G(debug),task=$S(task=2:2,1:1) 
+    N tot S tot=""
+    I task=1 D 
+    .D TASK1
+    .W "Total: "_tot,?20    ;Print the total
+    .I dataset=0,tot=161 W "Correct",!
+    .I dataset=1,tot=180233229 W "Correct",!
+    I task=2 d
+    .D TASK2
+    .W "Total: "_tot,?20    ;Print the total
+    .I dataset=0,tot=48 W "Correct",!
+    .I dataset=1,tot=95411583 W "Correct",!
+    Q
+TASK1
+    F l=1:1:data D
+    .N allowmul S allowmul=1
+    .D READMUL(data(l))
+    Q
+
+TASK2
+    N pos,order,allowmul S pos=""
+    S order(1,0)="D do"
+    F l=1:1:data D
+    .S pos=1 F  Q:'pos  S pos=$F(data(l),"don't()",pos) I pos>0 S order(l,pos)="D dont"
+    .S pos=1 F  Q:'pos  S pos=$F(data(l),"do()",pos) I pos>0 S order(l,pos)="D do"
+    .S pos=1 F  Q:'pos  D
+    ..S pos=$F(data(l),"mul(",pos) 
+    ..Q:pos=0
+    ..N buff S buff=$E(data(l),pos-4,$L(data(l)))
+    ..S buff=$P(buff,")",1)_")"
+    ..Q:buff'?1"mul("1.3N1","1.3N1")"          ;Check it's a valid instruction
+    ..S order(l,pos)="S tot=tot+$$"_buff
+    S l="" F  S l=$O(order(l)) Q:l=""  D
+    .S p="" F  S p=$O(order(l,p)) q:p=""  D
+    ..X order(l,p)
+    Q
+
+READMUL(line)
+    ;Looks for each mul(x,y) instruction in the blob of text.
+    F x=1:1:$L(line,"mul(") D
+    .N buffer S buffer="mul("_$P(line,"mul(",x) ;Get make the command base don pieces
+    .I buffer[")" S buffer=$P(buffer,")",1)_")" ;Get the end of the instruction
+    .Q:buffer'?1"mul("1.3N1","1.3N1")"          ;Check it's a valid instruction
+    .N ins S ins="S tot=tot+$$"_buffer          ;Prepare the instruction to run
+    .W:debug ins,!                              ;Debug line
+    .X ins                  ;I don't usually like execute, but this is quickest route
+    Q
+
+mul(a,b)    ;Quick function, so I can call "mul(a,b)" and get the right answer
+    I task=2,allowmul=0 Q 0
+    Q (a*b)
+do          ;Quick function, so I can call "do" and enable mul()
+    S allowmul=1 
+    Q
+dont        ;Quick function, so I can call "dont" and disable mul()
+    S allowmul=0 
+    Q
