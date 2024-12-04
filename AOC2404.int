@@ -1,0 +1,99 @@
+AOC2404 ; 2024 Day 4
+
+T1  ;;Test Data 1;;
+    ;MMMSXXMASM
+    ;MSAMXMSMSA
+    ;AMXSXMAAMM
+    ;MSAMASMSMX
+    ;XMASAMXAMM
+    ;XXAMMXXAMA
+    ;SMSMSASXSS
+    ;SAXAMASAAA
+    ;MAMMMXMMMM
+    ;MXMXAXMASX
+    ;;ENDS;;
+
+DOIT(dataset,task,debug)
+    N data
+    I dataset=0 D LOADTD^AOCBASE("T1","AOC2404",.data)  ;Test data 1
+    I dataset=1 D LOAD^AOCBASE(2024,4,.data)            ;Actual data
+    S debug=+$G(debug),task=$S(task=2:2,1:1)
+    I task=1 D TASK1
+    I task=2 D TASK2
+    Q
+
+TASK1
+    ;Find sum of any forward or reversed "XMAS", looking horizontally, vertically and diagonally.
+    N translate,used,sum,x,y S sum=0
+    D TRANSTAB(.translate)
+    F y=1:1:data D
+    .F x=1:1:$L(data(y)) D
+    ..I $E(data(y),x)="X" D CHKINIT1(x,y)
+    W "Occurances of ""XMAS"": "_sum,?30
+    I dataset=0 W $S(sum=18:"Correct",sum>18:"Too High",1:"Too Low"),!
+    I dataset=1 W $S(sum=2493:"Correct",sum>2493:"Too High",1:"Too Low"),!
+    Q
+
+TASK2
+    ;Find sum of any forward or reversed "XMAS", looking horizontally, vertically and diagonally.
+    N translate,used,sum,x,y S sum=0
+    D TRANSTAB(.translate)
+    F y=1:1:data D
+    .F x=1:1:$L(data(y)) D
+    ..I $E(data(y),x)="A" D CHKINIT2(x,y)
+    W "Occurances of ""X""-MAS: "_sum,?30
+    I dataset=0 W $S(sum=9:"Correct",sum>9:"Too High",1:"Too Low"),!
+    I dataset=1 W $S(sum=1890:"Correct",sum>1890:"Too High",1:"Too Low"),!
+    Q
+
+CHKINIT1(x,y)
+    N z,ok S (z,ok)=""
+    F  S z=$O(translate(z)) q:z=""  D
+    .W:debug "X:",$J(x,3),?10,"Y:",$J(y,3),?20,"Z:",$J(z,3)
+    .S ok=$$CHKWORD(x,y,z,"XMAS")   ;Check for all permutations of XMAS at this position
+    .W:debug ?40,ok,!
+    .Q:$D(used(x,y,z))!($P(ok,"`")=0)
+    .S used(x,y,z)=$P(ok,"`",2,3)
+    .S sum=sum+1
+    Q
+
+CHKINIT2(x,y)
+    ;In this, we have the centre letter "A", check for M in a corner, and S in the diagonally opposite corner.
+    N tx,ty,z,done S z="",done=0
+    F  S z=$O(translate(z)) q:z=""!(done=2)  D
+    .S tx=x,ty=y
+    .X translate(z)     ;We need to do an initial translation to move in one of the directions first.
+    .W:debug "X:",$J(x,3),?10,"Y:",$J(y,3),?20,"Z:",$J(z,3)
+    .S ok=$$CHKWORD(tx,ty,$S(z="SW":"NE",z="NE":"SW",z="NW":"SE",1:"NW"),"MAS")     ;Then it's just the same as task 1, but we need 2 successes for +1 to sum
+    .W:debug ?40,ok,!
+    .Q:$P(ok,"`")=0
+    .S done=done+1
+    I done=2 s sum=sum+1
+    Q
+
+CHKWORD(x,y,z,target)
+    ;Changed hardcoded "XMAS" to target for task 2, so I could reuse it to check "MAS"
+    ;   this also meant doing translate loop n-1 times, rather than 3 times.
+    ;We don't need to worry about -ve numbers in (x,tx,y,ty) $extract will return "" in these cases.
+    N n,tx,ty,str S tx=x,ty=y,str=""
+    S str=$E($G(data(y)),x)                         ;Include the leading letter
+    F n=2:1:$L(target) X translate(z) S str=str_$E($G(data(ty)),tx)
+    Q:str'=target "0`"_str_"`"_z                    ;The string doesn't match target - so error and quit
+    Q 1_"`"_str_"`"_z                               ;Otherwise the string is OK - pass it.
+
+TRANSTAB(translate)
+    ;Builds a direction translation table commands (i.e. where to move temp x and y, to check that direction for the next letter)
+    ; we'll then eXecute to run that command and position the next character to check (arbitrary code execution, it's useful, sometimes)
+    ; x = horizontal position in $E(data(y),?) | y = vertical position (data(?)) | z = direction (NN,NE,EE,SE,SS,SW,WW,NW)
+    ;
+    ;Extra post-conditional task=1 check is to allow reuse when we don't consider N E W S as valid translations
+    ;
+    S:task=1 translate("N")="s tx=tx,ty=ty-1"
+    S translate("NE")="s tx=tx+1,ty=ty-1"
+    S:task=1 translate("E")="s tx=tx+1,ty=ty"
+    S translate("SE")="s tx=tx+1,ty=ty+1"
+    S:task=1 translate("S")="s tx=tx,ty=ty+1"
+    S translate("SW")="s tx=tx-1,ty=ty+1"
+    S:task=1 translate("W")="s tx=tx-1,ty=ty"
+    S translate("NW")="s tx=tx-1,ty=ty-1"
+    Q

@@ -1,12 +1,12 @@
-AOCBASE ;Shared functions to save time in Advent of Code in 2024
+AOCBASE ;Shared functions to save time in Advent of Code
 
 LOADTD(lbl,rtn,data)
-    ;Loads test data from lbl^rtn, stopping at 1st occurance of ;;ENDS;;. 
-    ;If ;;ENDS;; is not there, it's go one until you give up. 
+    ;Loads test data from lbl^rtn, stopping at 1st occurance of ;;ENDS;;.
+    ;If ;;ENDS;; is not there, it's go one until you give up.
     ;Don't forget to start each line in your subroutine with a ;, or it won't compile
     ;Reads lines, building data() in line with file loader structure
     I $G(rtn)=""!($G(lbl)="") W "No routine or label given",! Q
-    I '##class(%Library.Routine).Exists(rtn) W "No routine called "_rtn,! Q 
+    I '##class(%Library.Routine).Exists(rtn) W "No routine called "_rtn,! Q
     N ref,done,x
     S ref=lbl_"^"_rtn I $ZSTRIP($T(@ref)="","<>W") W "No label called "_lbl_" within "_rtn,! Q
     ;Routine and label should exist now, so let's read it.
@@ -29,7 +29,7 @@ LOADFILE(filepath,data)
     . S line=file.ReadLine()
     . Q:line=""
     . S i=$I(data)
-    . S data(i)=line 
+    . S data(i)=line
     Q
 
 LOAD(year,day,data)
@@ -69,26 +69,30 @@ SAVECOOKIE(cookie)
     S ^AOC("EXPHORO")=expDate
     S ^AOC("EXPDATE")=expStr
     Q
-    
-GETFILE(year,day,path) 
-    ;Gets today's file from AOC site, as per aocdl's way of doing it.
-    I ##class(%File).Exists(path) W "GETFILE: We have the file "_year_"-"_day_" already",! Q  
+GETFILE(year,day,path,force)
+    S force=+$G(force)
+    ;Gets file from AOC site, as per aocdl's way of doing it.
+    I 'force,##class(%File).Exists(path) W "GETFILE: We have the file "_year_"-"_day_" already",! Q
     N cookie S cookie=$G(^AOC("COOKIE")) I cookie="" W "GETFILE: Cookie is not present" Q
     N expHoro S expHoro=$G(^AOC("EXPHORO")) I $ZD(+$ZTS,8)>$ZD(+expHoro,8) W "GETFILE: Cookie has probably expired" Q
     N expStr S expStr=$G(^AOC("EXPDATE"))
-    ;Do request
+    ;
     N request S request=##class(%Net.HttpRequest).%New()
     s request.Server="adventofcode.com"
+    ;s request.Server="apps.aa.uk"
     s request.Https=1
-    s request.SSLConfiguration="github-tls" ;No need to validate certs, just have the TLS entry set up
+    s request.SSLConfiguration="github-tls" ;No need to validate certs, just haver the TLS entry set up
     D request.SetHeader("User-Agent", "github.com/thedrjones/AOC2024")
     D request.InsertCookie("session",cookie,"/",".adventofcode.com",expStr,1)
-    s status=request.Get("/"_year_"/day/"_day_"/input")
+    s status=request.Get("/"_year_"/day/"_+day_"/input")
+    ;B ;Check request.Get
+    I request.HttpResponse.StatusCode'=200 D  Q
+    .W "Failed to download the data, please paste it into "_path,!
+    .W "Status returned: "_request.HttpResponse.StatusCode,!
     S resp=request.HttpResponse.Data
-    ;resp is probably of type %Stream.FileCharacterGzip, but Cache sorts it.
     N file s file=##class(%File).%New(path)
     S sc=file.Open("WSN") I 'sc W "Error opening file for writing",! D $System.Help.DisplayError(.sc) Q
-    S sc=file.CopyFrom(resp) I 'sc W "Error copying stream",! Q 
+    S sc=file.CopyFrom(resp) I 'sc W "Error copying stream",! Q
     S sc=file.%Save() I 'sc W "Error saving file",! Q
     W "GETFILE: Grabbed file "_year_"-"_day_" from AOC server",!
     Q
