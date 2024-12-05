@@ -1,0 +1,168 @@
+AOC2405 ; 2024 Day 5
+
+T1  ;;TEST DATA 1;;
+    ;47|53
+    ;97|13
+    ;97|61
+    ;97|47
+    ;75|29
+    ;61|13
+    ;75|53
+    ;29|13
+    ;97|29
+    ;53|29
+    ;61|53
+    ;97|53
+    ;61|29
+    ;47|13
+    ;75|47
+    ;97|75
+    ;47|61
+    ;75|61
+    ;47|29
+    ;75|13
+    ;53|13
+    ;
+    ;75,47,61,53,29
+    ;97,61,53,29,13
+    ;75,29,13
+    ;75,97,47,61,53
+    ;61,13,29
+    ;97,13,75,29,47
+    ;;ENDS;;
+
+DOIT(dataset,task,debug)
+    N data
+    I dataset=0 D LOADTD^AOCBASE("T1","AOC2405",.data)  ;Test data 1
+    I dataset=1 D LOAD^AOCBASE(2024,5,.data)            ;Actual data
+    S debug=+$G(debug),task=$S(task=2:2,1:1) 
+    
+    N fails,pagerules,update,il,iu S iu=0
+    F il=1:1:data D
+    .I data(il)["|" D  Q
+    ..N p1,p2
+    ..S p1=$P(data(il),"|",1),p2=$P(data(il),"|",2)
+    ..S pagerules(p1,p2)=data(il)_"|@"_il
+    .I data(il)["," D  Q
+    ..S iu=iu+1 
+    ..N pi F pi=1:1:$L(data(il),",") S update(iu,pi)=$P(data(il),",",pi),update(iu)=data(il)
+    I task=1!(task=2) D TASK1
+    I task=2 D TASK2
+    Q
+
+TASK1
+    ;pagerules(47,53)="47|53|@1"
+    ;   47|53, means that if an update includes both page 47 and page 53 then page 47 must be printed at some point before page 53.
+    ;   (47 doesn't need to be immediately before 53; other pages are allowed between)
+    ;update(1,1)=75, update(1,2)=47 ... update(1,5)=29
+    ;   75,47,61,53,29 means the update has those pages, in that order. This one meets the rules as all pages match the rules.
+    ;   75,97,47,61,53 does not meet the rule(97,75)="97|75|@16", as 75 will print before 97.
+    ;
+    ;Task 1: We need to check the order of pages in update(...) is correct, according to pagerules(...)
+    ;   If it is correctly ordered, we take the middle number and add it to the running sum.
+    ;   If it is not correctly ordered, it will no longer considered for printing by the calling subroutine
+    N sum S sum=0
+    F run=1:1:$O(update(""),-1) D                       ;For each page in the print run to the end of the run
+    .W:debug "Print #"_run_" ["_update(run)_"]: ",!     
+    .N isOk S isOk=$$CHKPRUN(run)                       ;Run the individual page rule checker.
+    .I 'isOk M fails(run,"O")=update(run) W:debug "Print #"_run_" ["_update(run)_"] is invalid",!,! Q ;No point in doing the rest
+    .N mid,midVal S mid=($O(update(run,""),-1)+1)/2,midVal=update(run,mid)  ;We need the middle page number of the set to
+    .S sum=sum+midVal                                                       ;   add to the running sum of middle page number
+
+    W "Result of mid page sum of valid jobs: "_sum,?50
+    I dataset=0 W $S(sum=143:"Correct",sum>143:"Too High",1:"Too Low"),!
+    I dataset=1 W $S(sum=5651:"Correct",sum>5651:"Too High",1:"Too Low"),!
+    Q
+
+TASK2
+    ;pagerules() and updates() are the same as task 1, we also have fails(run), which is the same as updates(run), but only contains task 1 failures.
+    ;
+    ;Task 2: For each of the fails(), use the page ordering rules to put the page numbers in the right order according to pagerules()
+    ;   Sort the pages, then take the middle page number of the revised print order to add to the running sum of middle page numbers.
+    ;
+    ;Line 4: 75,97,47,61,53 should become 97,75,47,61,53
+    ;     5: 61,13,29 should become 61,29,13
+    ;     6: 97,13,75,29,47 should become 97,75,47,29,13
+    N sum,frun S sum=0,frun=""
+    F  S frun=$O(fails(frun)) q:frun=""  D                       ;For each page in the print run to the end of the run
+    .W:debug "Print and sort #"_frun_" ["_fails(frun,"O")_"]: ",!     
+    .N newOrder S newOrder=""
+    .D SORTRUN(frun,.newOrder)
+    .
+    .W:debug ?10,"Sorting complete for #"_frun,!
+    .W:debug ?10,"* Was: "_fails(frun,"O"),!,?10,"* Now: "_newOrder,!
+    .N mid,midVal S mid=($L(newOrder,",")+1)/2,midVal=$P(newOrder,",",mid)  ;We need the middle page number of the set to sum in
+    .W:debug ?10,"* Mid Position: "_mid_", value: "_midVal,!
+    .S sum=sum+midVal  
+
+    W "Result of mid page sum of re-sorted jobs: "_sum,?50
+    I dataset=0 W $S(sum=123:"Correct",sum>123:"Too High",1:"Too Low"),!
+    I dataset=1 W $S(sum=4743:"Correct",sum>4743:"Too High",1:"Too Low"),!
+    Q
+
+SORTRUN(run,newOrder)
+    ;We need to evalute the rules, if we need to move a number, start the evaluation again.
+    M newOrder=fails(run,"O")
+    N failid S failid=""
+    F  S failid=$O(fails(run,"F",failid)) Q:failid=""  D
+    .N from,to,rule
+    .Q:$P(fails(run,"F",failid),"`",4)="DONE"
+    .Q:$P(fails(run,"F",failid),"`",4)="IGNORE"
+    .S from=$P(fails(run,"F",failid),"`",1)
+    .S to=$P(fails(run,"F",failid),"`",2)
+    .S rule=$P(fails(run,"F",failid),"`",3)
+    .W:debug ?10,"* Moving "_from_" to "_to_", due to rule "_rule,!
+    .D NODEMOVE(from,to,.newOrder)
+    .W:debug ?10,"* Moved page order, now: "_newOrder,!
+    .S $P(fails(run,"F",failid),"`",4)="DONE"
+    .;I worked out rather than doing position fixing for all steps discovered, which was my original plan, the positions get 
+    .; bugged out and don't really fix things ... so I decided that I'd just fix one, ignore others, then revalidate to pick
+    .; up the remaining errors with the new positions, then we'll pick up the new errors and do the same.
+    .N failidx F failidx=failid+1:1:$O(fails(run,"F",""),-1) S $P(fails(run,"F",failidx),"`",4)="IGNORE`"_failid
+    .K update(run) M update(run)=newOrder
+    .W:debug ?10,"* Commited move, revalidating rules...",!
+    .N wasOK S wasOK=$$CHKPRUN(run,1) ;Recall checker, which will build a new error if there still needs a tweak
+    .W:debug ?10,"Validations Successful?: ",?50,$$YESNO(wasOK),!
+    Q
+
+NODEMOVE(oldpos,newpos,array)
+    ;Assumes "from" and "to" are numbers and the first node is 1-N
+    N ox,i,tmpArray,maxp 
+    S maxp=$L(array,",")
+    S tmpArray(newpos)=array(oldpos)
+    S i=0
+
+    F ox=1:1:maxp D ;reading through old array nodes, to build up the new ones
+    .Q:ox=oldpos                            ;don't do anything for oldpos, we've already done it.
+    .F x=1:1 S i=i+1 Q:'$D(tmpArray(i))     ;check for a unique number, so we don't overwrite new data.
+    .S tmpArray(i)=array(ox)                ;set up position in new array
+        
+    K array M array=tmpArray                    ;out with the old, in with the new
+    F nx=1:1:maxp S $P(array,",",nx)=array(nx)  ;update top of node.
+    Q 
+
+CHKPRUN(run,fromfixer)
+    ;Checks a print run versus the rules in pagerules. We check everything before the current page for a rule.
+    N p,lastp,allOK S lastp=$O(update(run,""),-1),allOK=1   ;get the last page in the job, and assume it's OK for now.
+    W:debug ?10,"Evalulation",?50,"Run OK?",!               
+    ;B:+$G(fromfixer)=1&(run=6) ;check update(run),fails(run)
+    F p=1:1:lastp D                                         ;for each page in the print job to the end
+    .N thisPage,pageOK S thisPage=update(run,p),pageOK=1    ;get this page's number, assume this page is OK
+    .W:debug ?10,"Page #"_p_" : "_thisPage,!                
+    .I $D(pagerules(thisPage)) D            ;If there are page rules to follow then run them:
+    ..N tp,thisTest
+    ..F tp=1:1:p D                          ;Check each page in this run, up until the one being considered
+    ...S thisTest=update(run,tp)                ;Get the actual page number to test
+    ...Q:'$D(pagerules(thisPage,thisTest))      ;Quit if there are any rules 
+    ...S pageOK=0                               ;If we haven't quit yet, then this page has rules to enforce
+    ...W:debug ?12,"* Are rules OK against page "_thisTest_"?",?50,$$YESNO(pageOK),!
+    ...I task<2 Q       ;Quit in task 1. Note the failure for task 2.
+    ...N fi S fi=$O(fails(run,"F",""),-1)+1                     ;fail counter
+    ...S fails(run,"F",fi)=p_"`"_tp_"`"_thisPage_"|"_thisTest   ;
+    .I 'pageOK S allOK=0    ;If no page rules failed, this should be fine. If a page rule failed, then the job needs to be stopped.
+    W:debug ?10,"Result for sequence:",?50,$$YESNO(allOK),!
+    Q allOK
+
+YESNO(ok)
+    Q:'ok "No"
+    Q "Yes"
