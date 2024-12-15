@@ -1,0 +1,164 @@
+AOC2406 ;2024 Day 6
+
+T1  ;;TEST DATA 1;;
+    ;....#.....
+    ;.........#
+    ;..........
+    ;..#.......
+    ;.......#..
+    ;..........
+    ;.#..^.....
+    ;........#.
+    ;#.........
+    ;......#...
+    ;;ENDS;;
+
+DOIT(dataset,task,debug)
+    N data,translate
+    I dataset=0 D LOADTD^AOCBASE("T1","AOC2406",.data)  ;Test data 1
+    I dataset=1 D LOAD^AOCBASE(2024,6,.data)            ;Actual data
+    S debug=+$G(debug),task=$S(task=2:2,1:1)
+
+    n start,block,x,y
+    F y=1:1:data D
+    .F x=1:1:$L(data(y)) D
+    ..I $E(data(y),x)="#" S block(x,y)=""
+    ..I $E(data(y),x)="^" S start=x_"`"_y
+
+    N stephist
+    D TASK1
+    I task=2 D TASK2
+    Q
+
+TASK1
+    n steps,ipos,isOOB,dir S isOOB=0,dir="N",ipos=start,steps=0
+    f i=1:1 q:isOOB  D
+    .W:debug ?10,"Walking "_dir_" from "_ipos
+    .D  ;Stack off to make sure we only one one direction at a time
+    ..I "EW"[dir D CHKX Q
+    ..I "SN"[dir D CHKY Q
+    .W:debug ?30," to "_ipos,!
+    .I $P(ipos,"`",3)="OOB" s isOOB=1 q
+    .S $P(ipos,"`",3)=""
+    .Q
+
+    w "Steps before OOB: "_steps
+    i dataset=0 W ?30,$S(steps=41:"Correct",steps>41:"Too High",1:"Too Low"),!
+    i dataset=1 W ?30,$S(steps=4890:"Correct",steps>4890:"Too High",1:"Too Low"),!
+    Q
+
+
+TASK2
+    N originalSteps,sc,loopcounter,locations S loopcounter=0
+    S locations($P(start,"`",1),$P(start,"`",2))=""
+    M originalSteps=stephist("R")
+    S originalSteps=stephist
+
+    F i=1:1:originalSteps D
+    .N stephist,visited,steps,ipos,isOOB,isTrapped S (isOOB,isTrapped,steps)=0
+    .N x,ix S x=$P(originalSteps(i),"`",1),ix=x
+    .N y,iy S y=$P(originalSteps(i),"`",2),iy=y
+    .N dir,id S dir=$P(originalSteps(i),"`",3),id=dir
+    .W:debug ?10,"Start position is ",ix_","_iy_" with a block to the "_id_" , loops so far:"_loopcounter,!
+    .N ipos S ipos=x_"`"_y_"`"_dir
+    .N isTrapped S isTrapped=0
+    .N obstacle S obstacle=$$ADDOBS(x,y,dir)
+    .I obstacle="OBSOOB" Q                                      ;This new obstacle is out of bounds, so no need to work it out
+    .N bx,by S bx=$P(obstacle,"`",1),by=$P(obstacle,"`",2)      ;Might find bx and by useful
+    .I $D(locations(bx,by)) Q                                   ;Already tried
+    .I $D(block(bx,by)) Q                                       ;This is already a block, no need to work out if it's circular route
+    .S locations(bx,by)=""                                      ;Save that we've tried this one
+    .W:debug ?10,"* Creating new obstacle at "_$P(obstacle,"`",1)_","_$P(obstacle,"`",2),!
+    .S block($P(obstacle,"`",1),$P(obstacle,"`",2))="OBSTACLE"
+    .S dir=$S(dir="N":"E",dir="E":"S",dir="S":"W",1:"N")
+    .W:debug ?10,"* Initial deflection is "_dir,!
+    .N cnt f cnt=1:1 q:isOOB!(isTrapped)  D
+    ..W:debug ?10,"* Walking "_dir_" from "_ipos
+    ..D  ;Stack off to make sure we only one one direction at a time
+    ...I "EW"[dir D CHKX Q
+    ...I "SN"[dir D CHKY Q
+    ..W:debug ?30," to "_ipos
+    ..S visited(ipos)=$G(visited(ipos))+1,visited(ipos,cnt)=""
+    ..I visited(ipos)>1 D  Q
+    ...S $P(ipos,"`",3)="CIRC"
+    ...W:debug ?55,"Walker ["_i_" step "_cnt_"] Loop detected, marking as CIRC",!
+    ...S isTrapped=1,loopcounter=loopcounter+1
+    ..I $P(ipos,"`",3)="OOB" s isOOB=1 w:debug ?55,"Walker ["_i_" step "_cnt_"] Is OOB",! q
+    ..w:debug ?55,"Walker ["_i_" step "_cnt_"] Continues, Visits "_$G(visited(ipos)),!
+    ..S $P(ipos,"`",3)=""
+    .K block($P(obstacle,"`",1),$P(obstacle,"`",2))
+    .Q
+
+    w "Places to make a loop: "_loopcounter
+    i dataset=0 W ?30,$S(loopcounter=6:"Correct",loopcounter>6:"Too High",1:"Too Low"),!
+    i dataset=1 W ?30,$S(loopcounter=1995:"Correct",loopcounter>1995:"Too High",1:"Too Low"),!
+    Q
+
+ADDOBS(x,y,dir)
+    ;Works out the address of an obstacle in dir of x,y. (e.g. [2, 5, "N"] will be a new obstacle to the north of it at [2,4]).
+    ;Check the new obstacle is not out of bounds first
+    I dir="N",y=1 Q "OBSOOB"
+    I dir="S",y=data Q "OBSOOB"
+    I dir="W",x=1 Q "OBSOOB"
+    I dir="E",x=$L(data(y)) Q "OBSOOB"
+    ;Now set up the new obstacle
+    N obstacle s obstacle=$S(dir="W":(x-1),dir="E":(x+1),1:x)_"`"_$S(dir="N":(y-1),dir="S":(y+1),1:y)
+    Q obstacle
+
+CHKY  ;dir is S (2,3,4) or N (4,3,2)
+    N x,y,done,status,btype S done=0,status="OK",btype="BLOCK"
+    Q:$P(ipos,"`",3)="OOB" 2                                ;Stop if we're OOB already
+    Q:$P(ipos,"`",3)="CIRC" 3                               ;Or we are in a loop (in task 2)
+    q:dir="Q" 3
+    S x=$P(ipos,"`",1),y=$P(ipos,"`",2)                     ;Get start x,y
+    F  Q:done  D
+    .I dir="N",$D(block(x,y-1)) S status="BLOCK`N",done=1,btype=block(x,y-1) Q  ;If next location is a (N) block, quit
+    .I dir="S",$D(block(x,y+1)) S status="BLOCK`S",done=1,btype=block(x,y+1) Q ;If next location is a (S) block, quit
+    .I y>data S status="OOB",done=1 Q                       ;If we're escaping to (S), quit
+    .I y<1 S status="OOB",done=1 Q                          ;If we're escaping to (N), quit
+    .I '$D(steps(x,y)) s steps=steps+1,steps(x,y)=""        ;Increase step count for any new location
+    .N i S i=$I(stephist)                                   ;Task 2 addition
+    .S stephist("R",i)=x_"`"_y_"`"_dir                      ;   Record the route
+    .S stephist("U",x,y)=$G(stephist("U",x,y))+1            ;   Record times a place is crosed
+    .S stephist("U",x,y,i)=dir                              ;   Record the step each place is crossed
+    .S y=y+$S(dir="N":-1,1:1)                               ;Increment (S) or Decrement (N) Y
+    S:$P(status,"`",1)="BLOCK" dir=$S(dir="S":"W",1:"E")    ;If we stopped due to a block, 90 degree turn to right
+    S ipos=x_"`"_y_"`"_status                               ;Update with this new location, passing OOB if out
+    Q done
+
+CHKX ;dir is E (2,3,4) or W (4,3,2)
+    N x,y,done,status,btype S done=0,status="OK",btype="BLOCK"
+    Q:$P(ipos,"`",3)="OOB" 2                                ;Stop if we're OOB already
+    Q:$P(ipos,"`",3)="CIRC" 3                               ;Or we are in a loop (in task 2)
+    q:dir="Q" 3
+    S x=$P(ipos,"`",1),y=$P(ipos,"`",2)                     ;Get start x,y
+    F  Q:done  D
+    .I dir="E",$D(block(x+1,y)) S status="BLOCK`E",done=1,btype=block(x+1,y) Q   ;If next location is a (E) block, quit
+    .I dir="W",$D(block(x-1,y)) S status="BLOCK`W",done=1,btype=block(x-1,y) Q   ;If next location is a (W) block, quit
+    .I x>$L(data(y)) S status="OOB",done=1 Q                ;If we're escaping (W), quit
+    .I x<1 S status="OOB",done=1 Q                          ;If we're escaping (E), quit
+    .I '$D(steps(x,y)) s steps=steps+1,steps(x,y)=""        ;Increase step count for any new location
+    .S steps(x,y)=$G(steps(x,y))+1                          ;Record times a step is crossed
+    .N i S i=$I(stephist)                                   ;Task 2 addition
+    .S stephist("R",i)=x_"`"_y_"`"_dir                      ;   Record the route
+    .S stephist("U",x,y)=$G(stephist("U",x,y))+1            ;   Record times a place is crosed
+    .S stephist("U",x,y,i)=dir                              ;   Record the step each place is crossed
+    .S x=x+$S(dir="W":-1,1:1)                               ;Increment (E) or Decrement (W) X
+    S:$P(status,"`",1)="BLOCK" dir=$S(dir="E":"S",1:"N")    ;If we stopped due to a block, 90 degree trun to right
+    S ipos=x_"`"_y_"`"_status                               ;Update with this new location, passing OOB if out
+    Q done
+
+TRANSTAB(translate)
+    ;Builds a direction translation table commands (i.e. where to move temp x and y, to check that direction for the next letter)
+    ; we'll then eXecute to run that command and position the next character to check (arbitrary code execution, it's useful, sometimes)
+    ; x = horizontal position in $E(data(y),?) | y = vertical position (data(?)) | z = direction (NN,NE,EE,SE,SS,SW,WW,NW)
+    ;
+    S translate("N")="s tx=tx,ty=ty-1"
+    ;S translate("NE")="s tx=tx+1,ty=ty-1"
+    S translate("E")="s tx=tx+1,ty=ty"
+    ;S translate("SE")="s tx=tx+1,ty=ty+1"
+    S translate("S")="s tx=tx,ty=ty+1"
+    ;S translate("SW")="s tx=tx-1,ty=ty+1"
+    S translate("W")="s tx=tx-1,ty=ty"
+    ;S translate("NW")="s tx=tx-1,ty=ty-1"
+    Q

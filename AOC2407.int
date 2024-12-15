@@ -1,0 +1,66 @@
+AOC2407 ; 2024 Day 7
+T1 ;;Test Data 1;;
+    ;190: 10 19
+    ;3267: 81 40 27
+    ;83: 17 5
+    ;156: 15 6
+    ;7290: 6 8 6 15
+    ;161011: 16 10 13
+    ;192: 17 8 14
+    ;21037: 9 7 18 13
+    ;292: 11 6 16 20
+    ;66: 33 2 7
+    ;;ENDS;;
+    ;;Added test case to the end of the data to test I ignore times it can partially complete without all numbers, as first #1 was too high.
+DOIT(dataset,task,debug)
+    N data,sum S sum=0
+    I dataset=0 D LOADTD^AOCBASE("T1","AOC2407",.data)  ;Test data 1
+    I dataset=1 D LOAD^AOCBASE(2024,7,.data)            ;Actual data
+    S debug=+$G(debug),task=$S(task=2:2,1:1)
+
+    N i,result F i=1:1:data D
+    .n target,startpoint,nums,operator,ocnt
+    .s target=$P(data(i),": ",1)                ;Get the target
+    .S nums=$P(data(i),": ",2)                  ;Get the numbers to check against the right hand side
+    .S ocnt=$L(nums," ")-1                      ;We need to check that all operator spaces are filled
+    .N start,rest
+    .S start=$P(nums," ",1)                     ;Get first number
+    .S rest=$P(nums," ",2,$L(nums," "))         ;Get the rest of the numbers
+    .S:debug result(i)=target
+    .;This is not quick (especially task 2, ~17.9s), as it's all done in a single thread, but it works
+    .I task=1 F operator="*","+" D CALCNODE(target,start,rest,operator,"")   ;Calculate * and + permutation
+    .I task=2 F operator="*","+","|" D CALCNODE(target,start,rest,operator,"")   ;Calculate * and + permutation
+    .;We should have all the results back now
+    .N res,meth,done S (res,meth,done)=""
+    .F  S res=$O(result(i,res),1,data) Q:res=""!(done)  D
+    ..;B ;W ocnt,?10,$L($TR(res," ","")),!
+    ..I $L($TR(res," ",""))'=ocnt Q
+    ..I data=target S sum=sum+target,done=1
+    .Q
+    W "Final sum of possible numbers is: "_sum
+    W:dataset=0&(task=1) ?40,$S(sum=3749:"Correct",sum>3749:"Too High",1:"Too Low"),!
+    W:dataset=0&(task=2) ?40,$S(sum=11387:"Correct",sum>11387:"Too High",1:"Too Low!"),!
+    W:dataset=1&(task=1) ?40,$S(sum=2654749936343:"Correct",sum>2654749936343:"Too High",1:"")
+    W:dataset=1&(task=2) ?40,$S(sum=124060392153684:"Correct",sum>124060392153684:"Too High",1:"")
+    Q
+
+CALCNODE(target,start,next,operator,ops)
+    ;Recursive call to do more maths
+    I start<1 Q         ;Already broken
+    I start>target Q    ;No point in carrying on, it's already too big.
+    I next="" q         ;No more numbers to test, so see if it works.
+
+    N nstart,nnext,nopt,nres,nops
+    S nstart=$P(next," ",1)
+    S nnext=$P(next," ",2,$L(next," "))
+    S:operator="*" nres=(start*nstart)
+    S:operator="+" nres=(start+nstart)
+    S:operator="|" nres=(start_nstart)
+    S nops=$S(ops'="":ops_" ",1:"")_operator,result(i,nops)=nres
+    I task=1 F nopt="*","+" D CALCNODE(target,nres,nnext,nopt,nops)
+    I task=2 F nopt="*","+","|" D CALCNODE(target,nres,nnext,nopt,nops)
+    Q
+
+
+
+
