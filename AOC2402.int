@@ -9,32 +9,24 @@ T1 ;;TEST DATA 1;;
     ;1 3 6 7 9
     ;;ENDS;;
 
-DOIT(actual,task,debug)
+DOIT(dataset,task,debug)
     N data
-    I actual D LOAD^AOCBASE(2024,2,.data)
-    I 'actual D LOADTD^AOCBASE("T1","AOC2402",.data)
-    S debug=+$G(debug),task=$S(task=2:2,1:1) 
+    I dataset=1 D LOAD^AOCBASE(2024,2,.data)
+    I dataset=0 D LOADTD^AOCBASE("T1","AOC2402",.data)
+    S debug=+$G(debug),task=$S(task=2:2,1:1)
     N line,safe,safecnt,unsafecnt S (safecnt,unsafecnt)=0   ;Initialise the safe and unsafe counts
     I task=1 F line=1:1:data D ISSAFE1(task,data(line),line,.result)     ;Perform the safety check on this line (task 1 version)
     I task=2 F line=1:1:data D ISSAFE2(task,data(line),line,.result)  ;Perform the safety check on this line (task 2 version)
-    W "Result - Safe: "_safecnt_", Unsafe: "_unsafecnt,!    ;Report results
-    I 'actual D
-    .W:task=1 $S(safecnt=2:"Correct",1:"Wrong"),!
-    .W:task=2 $S(safecnt=4:"Correct",1:"Wrong"),!
-    I actual D
-    .W:task=1&(safecnt=670) "Correct",!  
-    .W:task=1&(safecnt>670) "Too high",! 
-    .W:task=1&(safecnt<670) "Too low",!  
-    .W:task=2&(safecnt<700) "Too low",!  
-    .W:task=2&(safecnt=700) "Correct",!
-    .W:task=2&(safecnt>700) "Too high",! 
+    W "Result - Safe: "_safecnt_", Unsafe: "_unsafecnt   ;Report results
+     N target S target=$G(^TASKRES(2,task,dataset))
+    W ?50,$S(target="":"Unknown",safecnt=target:"Correct",safecnt>target:"Too High",1:"Too Low"),!
     Q
 
 ISSAFE1(task,dataline,line,result)
-    ;Checks if a row is safe, according the the task 1 definition (check whole sequence)
+    ;Checks if a row is safe, according the the task 1 definition (check whole s0quence)
     ;This is the end game solution, I've tidied it up from it's initial form
     N res S res=$$CHKIT(dataline)
-    N unsafe S unsafe=$P(res,"`",1) 
+    N unsafe S unsafe=$P(res,"`",1)
     N reason S reason=$P(res,"`",2)
 
     W:debug "Line: "_line,?20,dataline,?60,unsafe_" "_$S(unsafe>0:reason,1:""),!
@@ -55,27 +47,27 @@ ISSAFE2(task,dataline,line,result)
     .Q:np>maxp
     .S testline=dataline
     .I np>0 S $P(testline," ",np)=$S($P(testline," ",np)>9:"**",1:"*")  ;Replaces this piece with a ** or *
-    .N res S res=$$CHKIT($ZSTRIP($TR(testline,"*"," "),"<=>W"))         ;Replaces the * with space, then strips out leading, trailing and repeating spaces
+    .N res S res=$$CHKIT($ZSTRIP($TR(testline,"*"," "),"<=>W"),np,testline)         ;Replaces the * with space, then strips out leading, trailing and repeating spaces
     .I $P(res,"`")=0 s isSafe=1
     .W:np=0 "Line: "_line,?15,"Removing nothing:",?36,testline,?62,"isSafe: "_isSafe,?74,"Result: "_res,!
     .W:np>0 "Line: "_line,?15,"Removing: @"_np_" ("_$P(dataline," ",np)_")",?36,testline,?62,"isSafe: "_isSafe,?74,"Result: "_res,!
     .I isSafe s okPos=np
-    
+
     i isSafe s safecnt=safecnt+1
     i 'isSafe s unsafecnt=unsafecnt+1
     Q
 
-CHKIT(testline)
+CHKIT(testline,repnum,origline)
     ;Rewritten version of the rules to hopefully pass task 2.
-    ;It took me ages working out the gtc=ltc one: 
-    ; I did eventually suspect it was something on the edge of being uncertain which way to go, ascending or decending.
+    ;It took me ages working out the gtc=ltc one:
+    ; I did eventuall suspect it was something on the edge of being uncertain which way to go, ascending or decending.
     ; but I didn't think to just fail it in the first place and see what came out!
     N result
     N maxp S maxp=$L(testline," ")
     N inc,fcnt S (inc,fcnt)=0
     N lastNum S lastNum=""
     N ltc,gtc S (ltc,gtc)=0
-    F x=1:1:maxp D 
+    F x=1:1:maxp D
     .N thisNum S thisNum=$P(testline," ",x)
     .S result(x)=thisNum
     .Q:x'>1  ;All lines in this loop only apply where x>1
