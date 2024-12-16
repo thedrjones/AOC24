@@ -1,0 +1,89 @@
+AOC2408 ;2024 Day 8
+T1  ;;Test Data 1;;
+    ;............
+    ;........0...
+    ;.....0......
+    ;.......0....
+    ;....0.......
+    ;......A.....
+    ;............
+    ;............
+    ;........A...
+    ;.........A..
+    ;............
+    ;............
+    ;;ENDS;;
+    ;123456789ABC
+
+DOIT(dataset,task,debug)
+    N data,sum,sts,ets S sum=0,sts=$P($ZTS,",",2)
+    I dataset=0 D LOADTD^AOCBASE("T1","AOC2408",.data)  ;Test data 1
+    I dataset=1 D LOAD^AOCBASE(2024,8,.data)            ;Actual data
+    S debug=+$G(debug),task=$S(task=2:2,1:1)
+    N cNodes D cNodes
+    ;
+    D TASK
+    S ets=$P($ZTS,",",2) W !,"Time: "_(ets-sts)_" s",!
+    Q
+
+TASK
+    N freq S freq=""            ;freqency ID
+    N antinodes S antinodes=0   ;antinodes=antinodes in plot
+    N newPlot M newPlot=data
+    F  S freq=$O(cNodes(freq)) q:freq=""  D cNodePair(freq)
+    I debug,task=2 ZW newPlot
+
+    W "Count of antinodes within plot: "_antinodes
+    N target S target=$G(^TASKRES(8,task,dataset))
+    W ?40,$S(antinodes=target:"Correct",antinodes>target:"Too High",1:"Too Low"),!
+    Q
+
+cNodes
+    ;Collects nodes
+    N y F y=1:1:data D
+    .N x F x=1:1:$L(data(y)) D
+    ..N c S c=$E(data(y),x)
+    ..I "#."[c Q ;Don't process these
+    ..S cn=$I(cNodes(c))
+    ..S cNodes(c,cn)=x_"`"_y
+    Q
+
+cNodePair(freq)
+    N txA F txA=1:1:cNodes(freq) D              ;Identify valid pairs
+    .N posTXA S posTXA=cNodes(freq,txA)         ;Get position A
+    .N txB F txB=1:1:cNodes(freq) D             ;Get other postions
+    ..Q:txA=txB                                 ;We need to calculate pairs, so need differences, not the same
+    ..N posTXB S posTXB=cNodes(freq,txB)        ;Get position B
+    ..W:debug "Freq: "_freq,?10,"tXA="_txA_" ["_posTXA_"]",?25,"tXB="_txB_" ["_posTXB_"]",!
+    ..D cNodeAnti(freq,posTXA,posTXB)           ;Work out the distance and the pair's antinode
+    Q
+
+cNodeAnti(freq,posTXA,posTXB)
+    ;Calculate the x/y distance between a given 2 nodes of a frequency, then calculate valid antinodes and place them.
+    N ax,bx S ax=$P(posTXA,"`",1),bx=$P(posTXB,"`",1)   ;Get TXA and TXB X difference
+    N ay,by S ay=$P(posTXA,"`",2),by=$P(posTXB,"`",2)   ;Get TXA and TXB Y difference
+    N sx,sy S sx=bx-ax,sy=by-ay                         ;Work out X and Y shift
+    I task=2 D
+    .I '$D(antinodes(ax,ay)) S antinodes(ax,ay,freq)=posTXA_"`"_posTXB_"`INITA",antinodes=antinodes+1
+    .I '$D(antinodes(bx,by)) S antinodes(bx,by,freq)=posTXA_"`"_posTXB_"`INITB",antinodes=antinodes+1
+    W:debug ?45,"X offset:",?55,"("_ax_"->"_bx_")",?65,sx,!
+    W:debug ?45,"Y offset:",?55,"("_ay_"->"_by_")",?65,sy,!
+    N nx,ny S nx=bx+sx,ny=by+sy                         ;We only need to work in 1 direction (as will be encountered other way too)
+    N OOP S OOP=0
+    N occ F occ=1:1 q:OOP  D
+    .;In bounds validation:
+    .;   1. task 1 does not allow for multiple recurrant antinodes
+    .;   2. nx is either <1 or >len(data(1))
+    .;   3. ny is either <1 or >len(data)
+    .S OOP=$S(task=1&(occ=2):2,nx<1:1,nx>$L(data(1)):1,ny<1:1,ny>data:1,1:0)
+    .;Validation of a antinode:
+    .;   1. We have not already recorded an overlapping anti-node
+    .;   2. We are not already out of plot/bounds
+    .N valid S valid=$S($D(antinodes(nx,ny)):0,OOP>0:0,1:1)
+    .S:valid antinodes(nx,ny,freq)=posTXA_"`"_posTXB_"`ANTI"   ;Record first sight of antinode
+    .I task=2,valid,$E(newPlot(ny),nx)="." S $E(newPlot(ny),nx)="#"
+    .W:debug ?45,"Antinode extrapolation: ["_nx_","_ny_"] "_$S(valid:"OK",OOP=2:"Unused for Task 1",$D(antinodes(nx,ny)):"Already recorded",1:"Out of area"),!
+    .S nx=nx+sx,ny=ny+sy                         ;Next position
+    .Q:'valid                                    ;Stop if invalid
+    .S antinodes=antinodes+1                     ;Increment count of unique anti-nodes
+    Q
