@@ -1,0 +1,134 @@
+AOC2409 ;2024 Day 9
+T1  ;;TEST DATA 1;;
+    ;2333133121414131402
+    ;;ENDS;;
+
+DOIT(dataset,task,debug)
+    N data,sum,sts,ets S sum=0,sts=$P($ZTS,",",2)
+    I dataset=0 D LOADTD^AOCBASE("T1","AOC2409",.data)  ;Test data 1
+    I dataset=1 D LOAD^AOCBASE(2024,9,.data)            ;Actual data
+    S debug=+$G(debug),task=$S(task=2:2,1:1)
+
+    N diskMap,extentMap,diskCap S (diskMap,extentMap,diskCap)=""            ;extentMap is for task 2
+    D LoadMap
+    D RenderArray   ;Only used to build/display the initial state
+    D:task=1 SortMap1
+    D:task=2 SortMap2,RenderArray
+
+    N sum S sum=$$CalcChecksum(.diskMap)
+    W "Filesystem Checksum: "_sum
+    N target S target=$G(^TASKRES(9,task,dataset))
+    W ?50,$S(target="":"Unknown",sum=target:"Correct",sum>target:"Too High",1:"Too Low"),!
+
+    S ets=$P($ZTS,",",2) W !,"Time: "_(ets-sts)_" s",!
+    Q
+
+LoadMap
+    N fileId S fileId=0
+    N outPos S outPos=0
+    N spaceId S spaceId=0               ;spaceId is used for Task 2
+    N v F v=1:1:$L(data(1)) D
+    .N isFile S isFile=$S(v#2=0:0,1:1)
+    .N blkSize S blkSize=$E(data(1),v)
+    .w:debug "Map Extrapolation: "_$S(v#2=1:"File #"_fileId,1:"Free"),?30,blkSize_" blocks",!
+    .I blkSize=0,'isFile Q  ;Don't write empty block to diskMap
+    .I task=2 d ;We use an extentMap for task 2, rather than working on the raw blocks
+    ..I isFile D  Q
+    ...S extentMap("D",fileId)=(outPos+1)_"`"_(outPos+blkSize)_"`"_blkSize  ;Set up the extentMap("DATA",fileId)
+    ...S extentMap("D")=fileId                                              ;Count up the fileId max
+    ..S extentMap("F",spaceId)=(outPos+1)_"`"_(outPos+blkSize)_"`"_blkSize  ;Set up the extentMap("FREE",spaceId)
+    ..S extentMap("F")=spaceId,spaceId=spaceId+1                            ;Increment spaceId and update max
+    .N i F i=1:1:blkSize S outPos=outPos+1,diskMap(outPos)=$S(isFile:fileId,1:".")
+    .S:isFile fileId=fileId+1
+    S (diskMap,diskCap)=outPos
+    Q
+
+SortMap1
+    N moveDone S movesDone=0
+    N s F s=diskMap:-1:1 Q:movesDone  D
+    .I $G(diskMap(s))="." Q
+    .N fileBlock S fileBlock=diskMap(s)
+    .N freeDest S freeDest=0
+    .N d S d=$$FirstEmpty()
+    .I d>0,d'>s S diskMap(d)=fileBlock,diskMap(s)="."
+    .I d'<s S movesDone=1
+    .I debug W "Move "_s_" to "_d,?20 D RenderArray W !
+    Q
+
+SortMap2
+    N s F s=extentMap("D"):-1:0  D
+    .W:debug "Looking to move fileId:"_s,!
+    .N fileBlock S fileBlock=extentMap("D",s)
+    .N blkSize S blkSize=$P(extentMap("D",s),"`",3)
+    .N d S d=$$FirstEmptyExtent(blkSize)
+    .I d=-1 W:debug ?10,"We cannot move file: "_s,?40," no free chunk large enough",! D RenderArray Q
+    .W:debug ?10,"We should be able to file: "_s,?40," to free chunk: "_d,!
+    .D MoveFile(s,d,blkSize)
+    Q
+
+MoveFile(s,d,blkSize)
+    W:debug ?10,"Moving file "_s_" to free block "_d,!
+    N dataPosS S dataPosS=$P(extentMap("D",s),"`",1)                    ;Get start of source data block
+    N dataPosE S dataPosE=$P(extentMap("D",s),"`",2)                    ;Get end of source data block
+    N freePosS S freePosS=$P(extentMap("F",d),"`",1)                    ;Get start of destination free block
+    N freePosE S freePosE=$P(extentMap("F",d),"`",2)                    ;Get end of destination free block
+    I dataPosS<freePosS W:debug ?10,"Aborting move as it it's to the right of current position",! Q
+    S extentMap("D",s)=freePosS_"`"_(freePosS+blkSize-1)_"`"_blkSize    ;Change the extent start and end to space used in free block
+    W:debug ?10,"File Node "_s_" is "_extentMap("D",s)
+    D FreeBlocks
+    Q
+
+FreeBlocks
+    ;Free space quickly (without updating the diskMap)
+    K extentMap("F")
+    N tempData,dc
+    F dc=0:1:extentMap("D") D           ;Temporarily build a lookup of file start and end points.
+    .N ds S ds=$P(extentMap("D",dc),"`",1)  ;File start
+    .N de S de=$P(extentMap("D",dc),"`",2)  ;File ends
+    .N db S db=$P(extentMap("D",dc),"`",3)  ;File block size
+    .S tempData(ds,de)="File "_dc_"`"_db    ;Into temp location
+
+    N sp,ep,fc S (sp,ep)="",fc=0        ;Go through the temporary lookup and work out the free blocks
+    F  S sp=$O(tempData(sp)) Q:sp=""  D ;Look through each entry in the temp location
+    .S ep=$O(tempData(sp,""))+1             ;Get the end position for this block, plus 1
+    .I $D(tempData(ep)) s sp=(ep-1) Q       ;See if there is another file at this positon, if so update sp to pos before.
+    .N np S np=$O(tempData(ep))             ;OK, so there is free space, but when does the next file start?
+    .I np="" S np=diskCap+1                 ;...we could go past the end of the disk (and we'll subtract the 1 shortly)
+    .S $P(extentMap("F",fc),"`",1)=(ep)             ;start of free space is the endpoint from last file
+    .S $P(extentMap("F",fc),"`",2)=(np-1)           ;end of the free space is before the next file
+    .S $P(extentMap("F",fc),"`",3)=((np-1)-(ep)+1)  ;work out the size of the free block
+    .S extentMap("F")=fc,fc=fc+1                    ;Update the free block counters
+    Q
+
+CalcChecksum(array)
+    N sum S sum=0
+    N pos F pos=1:1:array D
+    .Q:diskMap(pos)'?.N
+    .N poscs S poscs=(pos-1)*diskMap(pos)
+    .S sum=sum+poscs
+    Q sum
+
+FirstEmpty()   ;Task 1 finds the first empty location on disk
+    N resp S resp=0
+    N fe F fe=1:1:diskMap I 'resp,diskMap(fe)="." S resp=fe
+    Q resp
+
+FirstEmptyExtent(blkSize)   ;Task 2 looks for the first contiguous block we can fit the file in.
+    N resp S resp=-1        ;Default is -1 (can't find a big enough block) as free block 0 exists
+    N fb F fb=0:1:extentMap("F") Q:resp>-1  D  ;Go through each free block until we have an answer
+    .N availSize S availSize=$P(extentMap("F",fb),"`",3)    ;Get the size of this block to check against
+    .I availSize'<blkSize S resp=fb                         ;If [free block size] >= [the file we're putting there], then this is the block we'll move to
+    .W:debug ?10,"Free block "_fb_" is "_availSize_" we need "_blkSize,?40,$S(availSize'<blkSize:"OK",1:"Not OK"),!
+    Q resp
+
+RenderArray
+    I task=2 D      ;For task 2 we do most of the work on the extentMap, this creates the diskMap from extentMap.
+    .N x F x=1:1:diskMap S diskMap(x)="."   ;Clear the diskMap (makes sure that all redundant copies are moved)
+    .N x f x=0:1:extentMap("D") D           ;Fill in file blocks
+    ..N a s a=$P(extentMap("D",x),"`",1,2)
+    ..N b f b=($P(a,"`",1)):1:($P(a,"`",2)) s diskMap(b)=x
+    Q:dataset=1     ;We can't really render the diskMap on large datasets.
+    W:debug "Render: "
+    N x F x=1:1:diskMap W diskMap(x)
+    W !
+    Q
